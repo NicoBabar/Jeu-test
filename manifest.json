@@ -1,0 +1,14 @@
+{
+  "name": "Warhammer Battle",
+  "short_name": "W40K Battle",
+  "description": "Simulateur de combat Warhammer 40K - Space Marines vs Orks",
+  "start_url": "./warhammer.html",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#c0392b",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
