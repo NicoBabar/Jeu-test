@@ -11,314 +11,434 @@
     <meta name="theme-color" content="#c0392b">
     <link rel="apple-touch-icon" href="icon-192.png">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
+
         body {
             background: #1a1a2e;
             color: #e0e0e0;
             font-family: Georgia, serif;
-            min-height: 100vh;
-            padding: 14px;
-        }
-        h1 {
-            text-align: center;
-            color: #c0392b;
-            font-size: 1.3em;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            margin-bottom: 2px;
-        }
-        .subtitle {
-            text-align: center;
-            color: #777;
-            font-size: 0.78em;
-            margin-bottom: 14px;
-        }
-        .armies {
+            height: 100dvh;
             display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .army {
-            flex: 1;
-            background: #16213e;
-            border-radius: 10px;
-            padding: 10px;
-            border: 2px solid #333;
-        }
-        .army.marines { border-color: #1a5276; }
-        .army.orks    { border-color: #1e8449; }
-        .army h2 {
-            font-size: 0.8em;
-            text-align: center;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        .marines h2 { color: #5dade2; }
-        .orks h2    { color: #58d68d; }
 
-        .unit {
+        /* ── Header ── */
+        .header {
+            padding: 7px 12px;
             background: #0d1117;
-            border-radius: 7px;
-            padding: 7px;
-            margin-bottom: 6px;
-            border: 1px solid #2c2c2c;
-        }
-        .unit.dead { opacity: 0.4; }
-        .unit-name { font-size: 0.75em; font-weight: bold; margin-bottom: 3px; }
-        .hp-bar { background: #333; border-radius: 4px; height: 7px; margin-bottom: 3px; overflow: hidden; }
-        .hp-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
-        .marines .hp-fill { background: #2980b9; }
-        .orks    .hp-fill { background: #27ae60; }
-        .hp-text { font-size: 0.65em; color: #999; }
-        .stats   { font-size: 0.6em; color: #666; margin-top: 3px; }
-
-        .battle-area { text-align: center; margin-bottom: 12px; }
-        .phase-indicator {
-            font-size: 0.82em;
-            color: #e67e22;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 8px;
-        }
-        .dice-display {
+            border-bottom: 2px solid #c0392b;
             display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 6px;
-            min-height: 38px;
-            margin-bottom: 10px;
+            justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
-        .die {
-            width: 34px; height: 34px;
-            background: #f0f0f0; color: #1a1a2e;
-            border-radius: 6px;
+        .turn-label {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .marines-color { color: #5dade2; }
+        .orks-color    { color: #58d68d; }
+        .phase-label { font-size: 0.68em; color: #e67e22; margin-top: 2px; }
+        .tour-label  { font-size: 0.68em; color: #666; }
+
+        /* ── Grid ── */
+        .grid-wrapper {
+            flex: 1;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 6px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(10, 36px);
+            grid-template-rows: repeat(20, 36px);
+            gap: 1px;
+            background: #2c3e50;
+            border: 2px solid #2c3e50;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .cell {
+            width: 36px; height: 36px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.1em; font-weight: bold;
-            border: 2px solid #ccc;
+            position: relative;
         }
-        .die.hit   { background: #58d68d; border-color: #27ae60; }
-        .die.miss  { background: #e74c3c; border-color: #c0392b; color: #fff; }
-        .die.wound { background: #f39c12; border-color: #e67e22; }
-        .die.save  { background: #3498db; border-color: #2980b9; color: #fff; }
-        .sep { color: #666; font-size: 0.7em; }
+        .cell.light { background: #1e2d40; }
+        .cell.dark  { background: #192538; }
+        .cell.zone-m { background: #1b2f4a; }
+        .cell.zone-o { background: #1b3a24; }
+        .cell.valid-move    { background: rgba(52,152,219,0.45) !important; outline: 1px solid #3498db; }
+        .cell.valid-attack  { background: rgba(231,76,60,0.45)  !important; outline: 1px solid #e74c3c; }
 
-        .attack-btn {
-            background: #c0392b; color: white;
-            border: none; padding: 14px;
-            border-radius: 8px; font-size: 1em;
-            font-family: Georgia, serif;
-            text-transform: uppercase; letter-spacing: 2px;
-            cursor: pointer; width: 100%;
-            -webkit-tap-highlight-color: transparent;
+        /* ── Unit tokens ── */
+        .token {
+            width: 31px; height: 31px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.6em; font-weight: bold;
+            border: 2px solid transparent;
+            position: relative;
         }
-        .attack-btn:active { background: #922b21; }
-        .attack-btn:disabled { background: #444; }
-        .restart-btn {
-            background: #2c3e50; color: #aaa;
-            border: none; padding: 12px;
-            border-radius: 8px; font-size: 0.85em;
-            cursor: pointer; width: 100%; margin-top: 8px;
-            font-family: Georgia, serif;
-        }
+        .token.marines { background: #1a5276; border-color: #5dade2; color: #aedff7; }
+        .token.orks    { background: #1e5631; border-color: #58d68d; color: #a9dfbf; }
+        .token.selected { border-color: #f1c40f !important; box-shadow: 0 0 7px #f1c40f88; }
+        .token.done     { opacity: 0.55; }
 
-        .log {
+        .hp-bar { position: absolute; bottom: -3px; left: 1px; right: 1px; height: 3px; background: #333; border-radius: 2px; overflow: hidden; }
+        .hp-fill { height: 100%; background: #27ae60; transition: width .3s; }
+        .hp-fill.crit { background: #e74c3c; }
+
+        /* ── Bottom panel ── */
+        .bottom {
             background: #0d1117;
-            border-radius: 8px; padding: 10px;
-            max-height: 190px; overflow-y: auto;
-            border: 1px solid #222;
+            border-top: 2px solid #2c3e50;
+            padding: 7px 10px;
+            flex-shrink: 0;
         }
-        .log-title {
-            font-size: 0.7em; color: #777;
-            text-transform: uppercase; letter-spacing: 2px;
-            margin-bottom: 6px;
+        .unit-info { font-size: 0.7em; color: #999; margin-bottom: 7px; min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btns { display: flex; gap: 6px; }
+        .btn {
+            flex: 1; padding: 10px 4px;
+            border: none; border-radius: 6px;
+            font-family: Georgia, serif; font-size: 0.72em;
+            text-transform: uppercase; letter-spacing: 1px;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
         }
-        .log-entry { font-size: 0.75em; padding: 3px 0; border-bottom: 1px solid #1a1a2e; line-height: 1.4; }
-        .marines-turn { color: #5dade2; }
-        .orks-turn    { color: #58d68d; }
-        .result   { color: #f39c12; font-style: italic; }
-        .victory  { color: #f1c40f; font-weight: bold; font-size: 0.95em; text-align: center; padding: 6px; }
+        .btn-cancel { background: #1e2d40; color: #888; }
+        .btn-end    { background: #c0392b; color: white; }
+        .btn:disabled { background: #1e2d40; color: #444; }
+
+        /* ── Dice overlay ── */
+        .overlay {
+            display: none; position: fixed;
+            inset: 0; background: rgba(0,0,0,.88);
+            z-index: 50; flex-direction: column;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .overlay.show { display: flex; }
+        .ov-title { font-size: .95em; color: #e67e22; text-transform: uppercase; letter-spacing: 2px; text-align: center; margin-bottom: 10px; }
+        .ov-label { font-size: .7em; color: #888; margin-top: 8px; }
+        .dice-row { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-top: 4px; }
+        .die { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.1em; font-weight: bold; }
+        .die.hit   { background: #58d68d; color: #1a1a2e; }
+        .die.miss  { background: #e74c3c; color: #fff; }
+        .die.wound { background: #f39c12; color: #1a1a2e; }
+        .die.save  { background: #3498db; color: #fff; }
+        .ov-result { color: #f39c12; font-style: italic; font-size: .8em; text-align: center; margin-top: 12px; }
+        .btn-ok { background: #c0392b; color: white; border: none; padding: 12px 32px; border-radius: 6px; font-family: Georgia; font-size: .9em; margin-top: 14px; cursor: pointer; }
+
+        /* ── Victory overlay ── */
+        #ov-victory { z-index: 100; }
+        .victory-text { font-size: 1.4em; color: #f1c40f; text-transform: uppercase; letter-spacing: 3px; text-align: center; margin-bottom: 24px; }
     </style>
 </head>
 <body>
 
-<h1>⚔️ Warhammer Battle</h1>
-<p class="subtitle">Space Marines vs Orks</p>
-
-<div class="armies">
-    <div class="army marines"><h2>Space Marines</h2><div id="marines-units"></div></div>
-    <div class="army orks"><h2>Orks</h2><div id="orks-units"></div></div>
+<div class="header">
+    <div>
+        <div class="turn-label" id="turn-label">Space Marines</div>
+        <div class="phase-label" id="phase-label">Sélectionnez une unité</div>
+    </div>
+    <div class="tour-label" id="tour-label">Tour 1</div>
 </div>
 
-<div class="battle-area">
-    <div class="phase-indicator" id="phase-text"></div>
-    <div class="dice-display" id="dice-display"></div>
-    <button class="attack-btn" id="attack-btn" onclick="doAttack()">⚔️ Attaquer !</button>
-    <button class="restart-btn" id="restart-btn" onclick="initGame()" style="display:none">🔄 Nouvelle partie</button>
+<div class="grid-wrapper">
+    <div class="grid" id="grid"></div>
 </div>
 
-<div class="log">
-    <div class="log-title">📜 Journal de bataille</div>
-    <div id="battle-log"></div>
+<div class="bottom">
+    <div class="unit-info" id="unit-info">Touchez une de vos unités</div>
+    <div class="btns">
+        <button class="btn btn-cancel" id="btn-cancel" onclick="deselect()" disabled>✕ Annuler</button>
+        <button class="btn btn-end" onclick="endTurn()">Fin du tour →</button>
+    </div>
+</div>
+
+<!-- Dice overlay -->
+<div class="overlay" id="ov-dice">
+    <div class="ov-title" id="ov-title"></div>
+    <div class="ov-label" id="lbl-hit"></div>
+    <div class="dice-row" id="row-hit"></div>
+    <div class="ov-label" id="lbl-wound"></div>
+    <div class="dice-row" id="row-wound"></div>
+    <div class="ov-label" id="lbl-save"></div>
+    <div class="dice-row" id="row-save"></div>
+    <div class="ov-result" id="ov-result"></div>
+    <button class="btn-ok" onclick="closeDice()">Continuer</button>
+</div>
+
+<!-- Victory overlay -->
+<div class="overlay" id="ov-victory">
+    <div class="victory-text" id="victory-msg"></div>
+    <button class="btn-ok" onclick="initGame()">🔄 Nouvelle partie</button>
 </div>
 
 <script>
-const FACTIONS = {
-    marines: {
-        units: [
-            { name: "Sergent Titus",    ws:3, s:4, t:4, save:3, w:3, a:3 },
-            { name: "Marine I",         ws:3, s:4, t:4, save:3, w:2, a:2 },
-            { name: "Marine II",        ws:3, s:4, t:4, save:3, w:2, a:2 },
-        ]
-    },
-    orks: {
-        units: [
-            { name: "Warboss Grimtusk", ws:4, s:5, t:4, save:4, w:4, a:4 },
-            { name: "Ork Boy I",        ws:4, s:4, t:4, save:6, w:2, a:3 },
-            { name: "Ork Boy II",       ws:4, s:4, t:4, save:6, w:2, a:3 },
-        ]
-    }
+const ROWS = 20, COLS = 10, MOVE = 3;
+
+const DEFS = {
+    marines: [
+        { name:'Sergent',  short:'Sgt', ws:3, s:4, t:4, save:3, w:3, a:3 },
+        { name:'Marine I', short:'MI',  ws:3, s:4, t:4, save:3, w:2, a:2 },
+        { name:'Marine II',short:'MII', ws:3, s:4, t:4, save:3, w:2, a:2 },
+    ],
+    orks: [
+        { name:'Warboss', short:'WB', ws:4, s:5, t:4, save:4, w:4, a:4 },
+        { name:'Ork I',   short:'OI', ws:4, s:4, t:4, save:6, w:2, a:3 },
+        { name:'Ork II',  short:'OII',ws:4, s:4, t:4, save:6, w:2, a:3 },
+    ]
 };
 
-let state = {};
-let turn = 'marines';
-let over = false;
+const START = {
+    marines: [{r:0,c:3},{r:1,c:4},{r:0,c:5}],
+    orks:    [{r:19,c:3},{r:18,c:4},{r:19,c:5}]
+};
 
-function d6() { return Math.floor(Math.random() * 6) + 1; }
+let grid, units, sel, turn, tourNum;
 
-function woundThreshold(s, t) {
-    if (s >= t * 2) return 2;
-    if (s > t)      return 3;
-    if (s === t)    return 4;
-    if (s * 2 >= t) return 5;
+function d6() { return Math.floor(Math.random()*6)+1; }
+
+function woundNeed(s, t) {
+    if (s >= t*2) return 2;
+    if (s > t)    return 3;
+    if (s === t)  return 4;
+    if (s*2 >= t) return 5;
     return 6;
 }
 
-function alive(faction) { return state[faction].filter(u => u.hp > 0); }
-
 function initGame() {
-    over = false; turn = 'marines';
-    state = {
-        marines: FACTIONS.marines.units.map(u => ({...u, hp: u.w})),
-        orks:    FACTIONS.orks.units.map(u => ({...u, hp: u.w})),
-    };
-    document.getElementById('battle-log').innerHTML = '';
-    document.getElementById('dice-display').innerHTML = '';
-    document.getElementById('attack-btn').disabled = false;
-    document.getElementById('attack-btn').style.display = 'block';
-    document.getElementById('restart-btn').style.display = 'none';
-    renderAll();
-    updatePhase();
-}
+    document.getElementById('ov-victory').classList.remove('show');
+    turn = 'marines'; tourNum = 1; units = []; sel = null;
+    grid = Array.from({length:ROWS}, () => Array(COLS).fill(null));
 
-function renderAll() {
-    ['marines', 'orks'].forEach(f => {
-        const el = document.getElementById(`${f}-units`);
-        el.innerHTML = FACTIONS[f].units.map((base, i) => {
-            const u = state[f][i];
-            const pct = Math.max(0, (u.hp / base.w) * 100);
-            return `<div class="unit ${u.hp <= 0 ? 'dead' : ''}">
-                <div class="unit-name">${u.name}${u.hp <= 0 ? ' ☠️' : ''}</div>
-                <div class="hp-bar"><div class="hp-fill" style="width:${pct}%"></div></div>
-                <div class="hp-text">B: ${Math.max(0,u.hp)}/${base.w}</div>
-                <div class="stats">CC${u.ws}+ F${u.s} E${u.t} Svg${u.save}+ A${u.a}</div>
-            </div>`;
-        }).join('');
+    ['marines','orks'].forEach(f => {
+        DEFS[f].forEach((d, i) => {
+            const p = START[f][i];
+            const u = {...d, faction:f, row:p.r, col:p.c, hp:d.w, moved:false, attacked:false};
+            units.push(u);
+            grid[p.r][p.c] = u;
+        });
     });
+
+    renderGrid(); updateHeader(); setInfo('Touchez une de vos unités');
 }
 
-function updatePhase() {
-    const label = turn === 'marines' ? 'Space Marines' : 'Orks';
-    document.getElementById('phase-text').textContent = `⚔️ Tour des ${label}`;
+/* ── Rendering ── */
+function renderGrid() {
+    const el = document.getElementById('grid');
+    el.innerHTML = '';
+
+    const mvSet = new Set((sel ? validMoves(sel) : []).map(({r,c}) => `${r},${c}`));
+    const atkSet = new Set((sel ? validAttacks(sel) : []).map(({r,c}) => `${r},${c}`));
+
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const div = document.createElement('div');
+            div.className = 'cell ' + ((r+c)%2===0 ? 'light' : 'dark');
+            if (r < 3)        div.classList.add('zone-m');
+            if (r >= ROWS-3)  div.classList.add('zone-o');
+
+            const key = `${r},${c}`;
+            if (mvSet.has(key))  div.classList.add('valid-move');
+            if (atkSet.has(key)) div.classList.add('valid-attack');
+
+            const u = grid[r][c];
+            if (u) {
+                const tok = document.createElement('div');
+                tok.className = `token ${u.faction}`;
+                if (u === sel)               tok.classList.add('selected');
+                if (u.moved && u.attacked)   tok.classList.add('done');
+                tok.textContent = u.short;
+
+                const bar = document.createElement('div'); bar.className = 'hp-bar';
+                const fill = document.createElement('div');
+                fill.className = 'hp-fill' + (u.hp/u.w < 0.4 ? ' crit' : '');
+                fill.style.width = Math.max(0, u.hp/u.w*100) + '%';
+                bar.appendChild(fill); tok.appendChild(bar);
+                div.appendChild(tok);
+            }
+
+            div.addEventListener('click', () => onCell(r, c));
+            el.appendChild(div);
+        }
+    }
 }
 
-function doAttack() {
-    if (over) return;
-    const enemy = turn === 'marines' ? 'orks' : 'marines';
-    const atks = alive(turn);
-    const defs = alive(enemy);
-    if (!atks.length || !defs.length) return;
+/* ── Logic ── */
+function validMoves(u) {
+    if (u.moved || u.hp <= 0) return [];
+    const out = [];
+    for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+            if (!grid[r][c] && Math.max(Math.abs(r-u.row), Math.abs(c-u.col)) <= MOVE && (r!==u.row||c!==u.col))
+                out.push({r, c});
+    return out;
+}
 
-    const attacker = atks[Math.floor(Math.random() * atks.length)];
-    const target   = defs[Math.floor(Math.random() * defs.length)];
-    const woundNeed = woundThreshold(attacker.s, target.t);
-
-    const dice = document.getElementById('dice-display');
-    dice.innerHTML = '';
-
-    let log = `<div class="log-entry ${turn}-turn"><b>${attacker.name}</b> → <b>${target.name}</b> (${attacker.a} att.)</div>`;
-
-    // Hits
-    let hits = 0;
-    for (let i = 0; i < attacker.a; i++) {
-        const r = d6();
-        const ok = r >= attacker.ws;
-        if (ok) hits++;
-        dice.innerHTML += `<div class="die ${ok ? 'hit' : 'miss'}">${r}</div>`;
-    }
-    log += `<div class="log-entry">Touches: ${hits}/${attacker.a} (besoin ${attacker.ws}+)</div>`;
-
-    // Wounds
-    let wounds = 0;
-    if (hits) {
-        dice.innerHTML += `<span class="sep">→</span>`;
-        for (let i = 0; i < hits; i++) {
-            const r = d6();
-            const ok = r >= woundNeed;
-            if (ok) wounds++;
-            dice.innerHTML += `<div class="die ${ok ? 'wound' : 'miss'}">${r}</div>`;
+function validAttacks(u) {
+    if (u.attacked || u.hp <= 0) return [];
+    const out = [];
+    for (let r = Math.max(0,u.row-1); r <= Math.min(ROWS-1,u.row+1); r++)
+        for (let c = Math.max(0,u.col-1); c <= Math.min(COLS-1,u.col+1); c++) {
+            const t = grid[r][c];
+            if (t && t.faction !== u.faction && t.hp > 0) out.push({r, c});
         }
-        log += `<div class="log-entry">Blessures: ${wounds}/${hits} (besoin ${woundNeed}+)</div>`;
-    }
+    return out;
+}
 
-    // Saves
-    let unsaved = 0;
-    if (wounds) {
-        dice.innerHTML += `<span class="sep">→</span>`;
-        for (let i = 0; i < wounds; i++) {
-            const r = d6();
-            const ok = r >= target.save;
-            if (!ok) unsaved++;
-            dice.innerHTML += `<div class="die ${ok ? 'save' : 'miss'}">${r}</div>`;
+function onCell(r, c) {
+    const clicked = grid[r][c];
+
+    if (sel) {
+        // Attack?
+        if (validAttacks(sel).some(p => p.r===r && p.c===c)) {
+            attack(sel, clicked); return;
         }
-        log += `<div class="log-entry">Sauvegardes: ${wounds - unsaved}/${wounds} réussies (besoin ${target.save}+)</div>`;
+        // Move?
+        if (validMoves(sel).some(p => p.r===r && p.c===c)) {
+            moveUnit(sel, r, c); return;
+        }
+        // Switch to another own unit
+        if (clicked && clicked.faction === turn && clicked.hp > 0) {
+            sel = clicked; updateUnitInfo(sel); renderGrid(); return;
+        }
+        deselect(); return;
     }
 
-    // Apply damage
-    if (unsaved > 0) {
-        target.hp = Math.max(0, target.hp - unsaved);
-        log += `<div class="log-entry result">💥 ${target.name} subit ${unsaved} blessure(s) — ${target.hp} restante(s)</div>`;
+    if (clicked && clicked.faction === turn && clicked.hp > 0) {
+        sel = clicked;
+        document.getElementById('btn-cancel').disabled = false;
+        updateUnitInfo(sel); renderGrid();
+    }
+}
+
+function moveUnit(u, r, c) {
+    grid[u.row][u.col] = null;
+    u.row = r; u.col = c;
+    grid[r][c] = u;
+    u.moved = true;
+    updateUnitInfo(u);
+    const atks = validAttacks(u);
+    document.getElementById('phase-label').textContent =
+        atks.length ? `${u.name} peut attaquer !` : `${u.name} a bougé`;
+    renderGrid();
+}
+
+function attack(atk, def) {
+    atk.attacked = true;
+
+    const wn = woundNeed(atk.s, def.t);
+    const hitD = [], woundD = [], saveD = [];
+
+    for (let i = 0; i < atk.a; i++) {
+        const r = d6(); hitD.push({r, ok: r >= atk.ws});
+    }
+    const hits = hitD.filter(d => d.ok).length;
+
+    for (let i = 0; i < hits; i++) {
+        const r = d6(); woundD.push({r, ok: r >= wn});
+    }
+    const wounds = woundD.filter(d => d.ok).length;
+
+    for (let i = 0; i < wounds; i++) {
+        const r = d6(); saveD.push({r, ok: r >= def.save});
+    }
+    const dmg = saveD.filter(d => !d.ok).length;
+
+    def.hp = Math.max(0, def.hp - dmg);
+    if (def.hp <= 0) grid[def.row][def.col] = null;
+
+    showDice(atk, def, wn, hitD, woundD, saveD, dmg);
+    deselect();
+    checkVictory();
+}
+
+function showDice(atk, def, wn, hitD, woundD, saveD, dmg) {
+    document.getElementById('ov-title').textContent = `${atk.name} ⚔️ ${def.name}`;
+
+    document.getElementById('lbl-hit').textContent =
+        `Touches (${atk.ws}+) : ${hitD.filter(d=>d.ok).length}/${hitD.length}`;
+    document.getElementById('row-hit').innerHTML =
+        hitD.map(d => `<div class="die ${d.ok?'hit':'miss'}">${d.r}</div>`).join('');
+
+    if (woundD.length) {
+        document.getElementById('lbl-wound').textContent =
+            `Blessures (${wn}+) : ${woundD.filter(d=>d.ok).length}/${woundD.length}`;
+        document.getElementById('row-wound').innerHTML =
+            woundD.map(d => `<div class="die ${d.ok?'wound':'miss'}">${d.r}</div>`).join('');
     } else {
-        log += `<div class="log-entry result">🛡️ Aucune blessure !</div>`;
+        document.getElementById('lbl-wound').textContent = 'Aucune touche';
+        document.getElementById('row-wound').innerHTML = '';
     }
 
-    renderAll();
-
-    // Victory check
-    const mAlive = alive('marines').length;
-    const oAlive = alive('orks').length;
-    if (!mAlive || !oAlive) {
-        const winner = mAlive ? 'Space Marines' : 'Orks';
-        log += `<div class="log-entry victory">🏆 VICTOIRE DES ${winner.toUpperCase()} ! 🏆</div>`;
-        over = true;
-        document.getElementById('attack-btn').style.display = 'none';
-        document.getElementById('restart-btn').style.display = 'block';
-        document.getElementById('phase-text').textContent = `🏆 ${winner} ont gagné !`;
+    if (saveD.length) {
+        document.getElementById('lbl-save').textContent =
+            `Sauvegardes (${def.save}+) : ${saveD.filter(d=>d.ok).length}/${saveD.length}`;
+        document.getElementById('row-save').innerHTML =
+            saveD.map(d => `<div class="die ${d.ok?'save':'miss'}">${d.r}</div>`).join('');
     } else {
-        turn = turn === 'marines' ? 'orks' : 'marines';
-        updatePhase();
+        document.getElementById('lbl-save').textContent = '';
+        document.getElementById('row-save').innerHTML = '';
     }
 
-    const logEl = document.getElementById('battle-log');
-    logEl.innerHTML = log + logEl.innerHTML;
+    document.getElementById('ov-result').textContent = dmg > 0
+        ? `💥 ${def.name} subit ${dmg} blessure(s) — ${Math.max(0,def.hp)} PV restant(s)`
+        : `🛡️ ${def.name} résiste !`;
+
+    document.getElementById('ov-dice').classList.add('show');
+}
+
+function closeDice() {
+    document.getElementById('ov-dice').classList.remove('show');
+    renderGrid();
+}
+
+function checkVictory() {
+    const mOk = units.filter(u => u.faction==='marines' && u.hp>0).length;
+    const oOk = units.filter(u => u.faction==='orks'    && u.hp>0).length;
+    if (!mOk || !oOk) {
+        document.getElementById('victory-msg').textContent =
+            `🏆 Victoire des ${mOk ? 'Space Marines' : 'Orks'} ! 🏆`;
+        setTimeout(() => document.getElementById('ov-victory').classList.add('show'), 500);
+    }
+}
+
+function deselect() {
+    sel = null;
+    document.getElementById('btn-cancel').disabled = true;
+    setInfo('Touchez une de vos unités');
+    renderGrid();
+}
+
+function endTurn() {
+    units.filter(u => u.faction===turn).forEach(u => { u.moved = false; u.attacked = false; });
+    turn = turn==='marines' ? 'orks' : 'marines';
+    if (turn==='marines') tourNum++;
+    deselect(); updateHeader();
+}
+
+function updateHeader() {
+    const lbl = document.getElementById('turn-label');
+    lbl.textContent = turn==='marines' ? 'Space Marines' : 'Orks';
+    lbl.className = 'turn-label ' + (turn==='marines' ? 'marines-color' : 'orks-color');
+    document.getElementById('phase-label').textContent = 'Sélectionnez une unité';
+    document.getElementById('tour-label').textContent = `Tour ${tourNum}`;
+}
+
+function updateUnitInfo(u) {
+    setInfo(`${u.name} · PV ${u.hp}/${u.w} · Mvt ${u.moved?'✓':'3 cases'} · Att ${u.attacked?'✓':'dispo'} · CC${u.ws}+ F${u.s} E${u.t} Svg${u.save}+`);
+}
+
+function setInfo(txt) {
+    document.getElementById('unit-info').textContent = txt;
 }
 
 initGame();
-
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js');
-}
 </script>
 </body>
 </html>
