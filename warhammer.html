@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Warhammer Battle</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #1a1a2e;
+            color: #e0e0e0;
+            font-family: Georgia, serif;
+            min-height: 100vh;
+            padding: 14px;
+        }
+        h1 {
+            text-align: center;
+            color: #c0392b;
+            font-size: 1.3em;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 2px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #777;
+            font-size: 0.78em;
+            margin-bottom: 14px;
+        }
+        .armies {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .army {
+            flex: 1;
+            background: #16213e;
+            border-radius: 10px;
+            padding: 10px;
+            border: 2px solid #333;
+        }
+        .army.marines { border-color: #1a5276; }
+        .army.orks    { border-color: #1e8449; }
+        .army h2 {
+            font-size: 0.8em;
+            text-align: center;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .marines h2 { color: #5dade2; }
+        .orks h2    { color: #58d68d; }
+
+        .unit {
+            background: #0d1117;
+            border-radius: 7px;
+            padding: 7px;
+            margin-bottom: 6px;
+            border: 1px solid #2c2c2c;
+        }
+        .unit.dead { opacity: 0.4; }
+        .unit-name { font-size: 0.75em; font-weight: bold; margin-bottom: 3px; }
+        .hp-bar { background: #333; border-radius: 4px; height: 7px; margin-bottom: 3px; overflow: hidden; }
+        .hp-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+        .marines .hp-fill { background: #2980b9; }
+        .orks    .hp-fill { background: #27ae60; }
+        .hp-text { font-size: 0.65em; color: #999; }
+        .stats   { font-size: 0.6em; color: #666; margin-top: 3px; }
+
+        .battle-area { text-align: center; margin-bottom: 12px; }
+        .phase-indicator {
+            font-size: 0.82em;
+            color: #e67e22;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        .dice-display {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            min-height: 38px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .die {
+            width: 34px; height: 34px;
+            background: #f0f0f0; color: #1a1a2e;
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1em; font-weight: bold;
+            border: 2px solid #ccc;
+        }
+        .die.hit   { background: #58d68d; border-color: #27ae60; }
+        .die.miss  { background: #e74c3c; border-color: #c0392b; color: #fff; }
+        .die.wound { background: #f39c12; border-color: #e67e22; }
+        .die.save  { background: #3498db; border-color: #2980b9; color: #fff; }
+        .sep { color: #666; font-size: 0.7em; }
+
+        .attack-btn {
+            background: #c0392b; color: white;
+            border: none; padding: 14px;
+            border-radius: 8px; font-size: 1em;
+            font-family: Georgia, serif;
+            text-transform: uppercase; letter-spacing: 2px;
+            cursor: pointer; width: 100%;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .attack-btn:active { background: #922b21; }
+        .attack-btn:disabled { background: #444; }
+        .restart-btn {
+            background: #2c3e50; color: #aaa;
+            border: none; padding: 12px;
+            border-radius: 8px; font-size: 0.85em;
+            cursor: pointer; width: 100%; margin-top: 8px;
+            font-family: Georgia, serif;
+        }
+
+        .log {
+            background: #0d1117;
+            border-radius: 8px; padding: 10px;
+            max-height: 190px; overflow-y: auto;
+            border: 1px solid #222;
+        }
+        .log-title {
+            font-size: 0.7em; color: #777;
+            text-transform: uppercase; letter-spacing: 2px;
+            margin-bottom: 6px;
+        }
+        .log-entry { font-size: 0.75em; padding: 3px 0; border-bottom: 1px solid #1a1a2e; line-height: 1.4; }
+        .marines-turn { color: #5dade2; }
+        .orks-turn    { color: #58d68d; }
+        .result   { color: #f39c12; font-style: italic; }
+        .victory  { color: #f1c40f; font-weight: bold; font-size: 0.95em; text-align: center; padding: 6px; }
+    </style>
+</head>
+<body>
+
+<h1>⚔️ Warhammer Battle</h1>
+<p class="subtitle">Space Marines vs Orks</p>
+
+<div class="armies">
+    <div class="army marines"><h2>Space Marines</h2><div id="marines-units"></div></div>
+    <div class="army orks"><h2>Orks</h2><div id="orks-units"></div></div>
+</div>
+
+<div class="battle-area">
+    <div class="phase-indicator" id="phase-text"></div>
+    <div class="dice-display" id="dice-display"></div>
+    <button class="attack-btn" id="attack-btn" onclick="doAttack()">⚔️ Attaquer !</button>
+    <button class="restart-btn" id="restart-btn" onclick="initGame()" style="display:none">🔄 Nouvelle partie</button>
+</div>
+
+<div class="log">
+    <div class="log-title">📜 Journal de bataille</div>
+    <div id="battle-log"></div>
+</div>
+
+<script>
+const FACTIONS = {
+    marines: {
+        units: [
+            { name: "Sergent Titus",    ws:3, s:4, t:4, save:3, w:3, a:3 },
+            { name: "Marine I",         ws:3, s:4, t:4, save:3, w:2, a:2 },
+            { name: "Marine II",        ws:3, s:4, t:4, save:3, w:2, a:2 },
+        ]
+    },
+    orks: {
+        units: [
+            { name: "Warboss Grimtusk", ws:4, s:5, t:4, save:4, w:4, a:4 },
+            { name: "Ork Boy I",        ws:4, s:4, t:4, save:6, w:2, a:3 },
+            { name: "Ork Boy II",       ws:4, s:4, t:4, save:6, w:2, a:3 },
+        ]
+    }
+};
+
+let state = {};
+let turn = 'marines';
+let over = false;
+
+function d6() { return Math.floor(Math.random() * 6) + 1; }
+
+function woundThreshold(s, t) {
+    if (s >= t * 2) return 2;
+    if (s > t)      return 3;
+    if (s === t)    return 4;
+    if (s * 2 >= t) return 5;
+    return 6;
+}
+
+function alive(faction) { return state[faction].filter(u => u.hp > 0); }
+
+function initGame() {
+    over = false; turn = 'marines';
+    state = {
+        marines: FACTIONS.marines.units.map(u => ({...u, hp: u.w})),
+        orks:    FACTIONS.orks.units.map(u => ({...u, hp: u.w})),
+    };
+    document.getElementById('battle-log').innerHTML = '';
+    document.getElementById('dice-display').innerHTML = '';
+    document.getElementById('attack-btn').disabled = false;
+    document.getElementById('attack-btn').style.display = 'block';
+    document.getElementById('restart-btn').style.display = 'none';
+    renderAll();
+    updatePhase();
+}
+
+function renderAll() {
+    ['marines', 'orks'].forEach(f => {
+        const el = document.getElementById(`${f}-units`);
+        el.innerHTML = FACTIONS[f].units.map((base, i) => {
+            const u = state[f][i];
+            const pct = Math.max(0, (u.hp / base.w) * 100);
+            return `<div class="unit ${u.hp <= 0 ? 'dead' : ''}">
+                <div class="unit-name">${u.name}${u.hp <= 0 ? ' ☠️' : ''}</div>
+                <div class="hp-bar"><div class="hp-fill" style="width:${pct}%"></div></div>
+                <div class="hp-text">B: ${Math.max(0,u.hp)}/${base.w}</div>
+                <div class="stats">CC${u.ws}+ F${u.s} E${u.t} Svg${u.save}+ A${u.a}</div>
+            </div>`;
+        }).join('');
+    });
+}
+
+function updatePhase() {
+    const label = turn === 'marines' ? 'Space Marines' : 'Orks';
+    document.getElementById('phase-text').textContent = `⚔️ Tour des ${label}`;
+}
+
+function doAttack() {
+    if (over) return;
+    const enemy = turn === 'marines' ? 'orks' : 'marines';
+    const atks = alive(turn);
+    const defs = alive(enemy);
+    if (!atks.length || !defs.length) return;
+
+    const attacker = atks[Math.floor(Math.random() * atks.length)];
+    const target   = defs[Math.floor(Math.random() * defs.length)];
+    const woundNeed = woundThreshold(attacker.s, target.t);
+
+    const dice = document.getElementById('dice-display');
+    dice.innerHTML = '';
+
+    let log = `<div class="log-entry ${turn}-turn"><b>${attacker.name}</b> → <b>${target.name}</b> (${attacker.a} att.)</div>`;
+
+    // Hits
+    let hits = 0;
+    for (let i = 0; i < attacker.a; i++) {
+        const r = d6();
+        const ok = r >= attacker.ws;
+        if (ok) hits++;
+        dice.innerHTML += `<div class="die ${ok ? 'hit' : 'miss'}">${r}</div>`;
+    }
+    log += `<div class="log-entry">Touches: ${hits}/${attacker.a} (besoin ${attacker.ws}+)</div>`;
+
+    // Wounds
+    let wounds = 0;
+    if (hits) {
+        dice.innerHTML += `<span class="sep">→</span>`;
+        for (let i = 0; i < hits; i++) {
+            const r = d6();
+            const ok = r >= woundNeed;
+            if (ok) wounds++;
+            dice.innerHTML += `<div class="die ${ok ? 'wound' : 'miss'}">${r}</div>`;
+        }
+        log += `<div class="log-entry">Blessures: ${wounds}/${hits} (besoin ${woundNeed}+)</div>`;
+    }
+
+    // Saves
+    let unsaved = 0;
+    if (wounds) {
+        dice.innerHTML += `<span class="sep">→</span>`;
+        for (let i = 0; i < wounds; i++) {
+            const r = d6();
+            const ok = r >= target.save;
+            if (!ok) unsaved++;
+            dice.innerHTML += `<div class="die ${ok ? 'save' : 'miss'}">${r}</div>`;
+        }
+        log += `<div class="log-entry">Sauvegardes: ${wounds - unsaved}/${wounds} réussies (besoin ${target.save}+)</div>`;
+    }
+
+    // Apply damage
+    if (unsaved > 0) {
+        target.hp = Math.max(0, target.hp - unsaved);
+        log += `<div class="log-entry result">💥 ${target.name} subit ${unsaved} blessure(s) — ${target.hp} restante(s)</div>`;
+    } else {
+        log += `<div class="log-entry result">🛡️ Aucune blessure !</div>`;
+    }
+
+    renderAll();
+
+    // Victory check
+    const mAlive = alive('marines').length;
+    const oAlive = alive('orks').length;
+    if (!mAlive || !oAlive) {
+        const winner = mAlive ? 'Space Marines' : 'Orks';
+        log += `<div class="log-entry victory">🏆 VICTOIRE DES ${winner.toUpperCase()} ! 🏆</div>`;
+        over = true;
+        document.getElementById('attack-btn').style.display = 'none';
+        document.getElementById('restart-btn').style.display = 'block';
+        document.getElementById('phase-text').textContent = `🏆 ${winner} ont gagné !`;
+    } else {
+        turn = turn === 'marines' ? 'orks' : 'marines';
+        updatePhase();
+    }
+
+    const logEl = document.getElementById('battle-log');
+    logEl.innerHTML = log + logEl.innerHTML;
+}
+
+initGame();
+</script>
+</body>
+</html>
