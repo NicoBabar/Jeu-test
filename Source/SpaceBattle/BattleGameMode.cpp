@@ -3,6 +3,7 @@
 #include "BattleWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
 
@@ -50,6 +51,8 @@ void ABattleGameMode::BeginPlay()
 		PC->SetInputMode(InputMode);
 		PC->bShowMouseCursor = true;
 	}
+
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Cyan, TEXT("[SpaceBattle] BeginPlay OK"));
 
 	AddLog(TEXT("Combat spatial commencé !"));
 	AddLog(TEXT("Choisissez votre action."));

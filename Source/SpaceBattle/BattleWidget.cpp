@@ -1,8 +1,6 @@
 #include "BattleWidget.h"
 #include "BattleGameMode.h"
 #include "Blueprint/WidgetTree.h"
-#include "Components/CanvasPanel.h"
-#include "Components/CanvasPanelSlot.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Components/HorizontalBox.h"
@@ -10,10 +8,10 @@
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "Components/ProgressBar.h"
-#include "Components/Image.h"
 #include "Components/Border.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
+#include "Components/SizeBox.h"
 #include "Styling/SlateTypes.h"
 #include "Styling/CoreStyle.h"
 
@@ -21,72 +19,104 @@ void UBattleWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	UCanvasPanel* Root = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), FName("Root"));
+	// "White" is a 1x1 white texture in CoreStyle — tinting it gives solid colors
+	const FSlateBrush* W = FCoreStyle::Get().GetBrush("White");
+
+	auto ColorBrush = [W](FLinearColor C) -> FSlateBrush
+	{
+		FSlateBrush B = *W;
+		B.TintColor = FSlateColor(C);
+		return B;
+	};
+
+	// Root overlay — fills the viewport
+	UOverlay* Root = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), FName("Root"));
 	WidgetTree->RootWidget = Root;
 
 	// Full-screen dark background
-	UImage* Bg = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-	Bg->SetColorAndOpacity(FLinearColor(0.03f, 0.03f, 0.08f, 1.f));
+	UBorder* BgBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	BgBorder->Background = ColorBrush(FLinearColor(0.03f, 0.03f, 0.08f, 1.f));
+	BgBorder->SetPadding(FMargin(0.f));
 	{
-		UCanvasPanelSlot* S = Root->AddChildToCanvas(Bg);
-		S->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-		S->SetOffsets(FMargin(0.f));
+		UOverlaySlot* S = Root->AddChildToOverlay(BgBorder);
+		S->SetHorizontalAlignment(HAlign_Fill);
+		S->SetVerticalAlignment(VAlign_Fill);
 	}
 
-	// Centered card (560x640)
-	UBorder* Card = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), FName("Card"));
-	Card->SetBrushColor(FLinearColor(0.08f, 0.08f, 0.12f, 1.f));
-	Card->SetPadding(FMargin(24.f));
+	// Centered card — fixed 560x640
+	USizeBox* CardBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), FName("CardBox"));
+	CardBox->SetWidthOverride(560.f);
+	CardBox->SetHeightOverride(640.f);
 	{
-		UCanvasPanelSlot* S = Root->AddChildToCanvas(Card);
-		S->SetAnchors(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
-		S->SetAlignment(FVector2D(0.5f, 0.5f));
-		S->SetSize(FVector2D(560.f, 640.f));
+		UOverlaySlot* S = Root->AddChildToOverlay(CardBox);
+		S->SetHorizontalAlignment(HAlign_Center);
+		S->SetVerticalAlignment(VAlign_Center);
 	}
+
+	UBorder* CardBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), FName("Card"));
+	CardBorder->Background = ColorBrush(FLinearColor(0.08f, 0.08f, 0.12f, 1.f));
+	CardBorder->SetPadding(FMargin(24.f));
+	CardBox->SetContent(CardBorder);
 
 	UVerticalBox* VBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	Card->SetContent(VBox);
+	CardBorder->SetContent(VBox);
 
-	const FSlateFontInfo Font16Bold = FCoreStyle::GetDefaultFontStyle("Bold", 16);
-	const FSlateFontInfo Font13Bold = FCoreStyle::GetDefaultFontStyle("Bold", 13);
-	const FSlateFontInfo Font12Bold = FCoreStyle::GetDefaultFontStyle("Bold", 12);
-	const FSlateFontInfo Font11Reg  = FCoreStyle::GetDefaultFontStyle("Regular", 11);
-	const FSlateFontInfo Font32Bold = FCoreStyle::GetDefaultFontStyle("Bold", 32);
+	// Font helpers
+	const FSlateFontInfo F16 = FCoreStyle::GetDefaultFontStyle("Bold", 16);
+	const FSlateFontInfo F13 = FCoreStyle::GetDefaultFontStyle("Bold", 13);
+	const FSlateFontInfo F12 = FCoreStyle::GetDefaultFontStyle("Bold", 12);
+	const FSlateFontInfo F11 = FCoreStyle::GetDefaultFontStyle("Regular", 11);
 
-	// ---- ENEMY SECTION ----
+	// HP bar style builder
+	auto MakeBarStyle = [&](FLinearColor Fill) -> FProgressBarStyle
+	{
+		FProgressBarStyle Style;
+		Style.BackgroundImage = ColorBrush(FLinearColor(0.12f, 0.12f, 0.12f, 1.f));
+		Style.FillImage       = ColorBrush(Fill);
+		Style.MarqueeImage    = ColorBrush(FLinearColor::Transparent);
+		return Style;
+	};
+
+	// Button style builder
+	auto MakeBtnStyle = [&](FLinearColor Base) -> FButtonStyle
+	{
+		FButtonStyle Style;
+		Style.Normal   = ColorBrush(Base);
+		Style.Hovered  = ColorBrush(FLinearColor(Base.R + 0.1f, Base.G + 0.1f, Base.B + 0.1f, 1.f));
+		Style.Pressed  = ColorBrush(FLinearColor(Base.R - 0.1f, Base.G - 0.1f, Base.B - 0.1f, 1.f));
+		Style.Disabled = ColorBrush(FLinearColor(0.25f, 0.25f, 0.25f, 0.6f));
+		Style.NormalPadding  = FMargin(12.f, 8.f);
+		Style.PressedPadding = FMargin(13.f, 9.f, 11.f, 7.f);
+		return Style;
+	};
+
+	// Label helper: adds a text block directly to VBox
+	auto AddLabel = [&](const FString& Str, FLinearColor Col, const FSlateFontInfo& Font, FMargin Pad)
 	{
 		UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-		T->SetText(FText::FromString(TEXT("ENNEMI")));
-		T->SetColorAndOpacity(FSlateColor(FLinearColor(0.9f, 0.3f, 0.3f, 1.f)));
-		T->SetFont(Font16Bold);
+		T->SetText(FText::FromString(Str));
+		T->SetColorAndOpacity(FSlateColor(Col));
+		T->SetFont(Font);
 		T->SetJustification(ETextJustify::Center);
 		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(T);
-		S->SetPadding(FMargin(0.f, 0.f, 0.f, 8.f));
+		S->SetPadding(Pad);
 		S->SetHorizontalAlignment(HAlign_Fill);
-	}
+	};
 
-	EnemyHPBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), FName("EnemyHPBar"));
+	// ---- ENEMY SECTION ----
+	AddLabel(TEXT("ENNEMI"), FLinearColor(0.9f, 0.3f, 0.3f, 1.f), F16, FMargin(0.f, 0.f, 0.f, 8.f));
+
+	EnemyHPBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), FName("EnemyHP"));
 	EnemyHPBar->SetPercent(1.f);
+	EnemyHPBar->SetWidgetStyle(MakeBarStyle(FLinearColor(0.85f, 0.1f, 0.1f, 1.f)));
 	{
-		FProgressBarStyle Style = FCoreStyle::Get().GetWidgetStyle<FProgressBarStyle>("ProgressBar");
-		Style.FillImage.TintColor = FSlateColor(FLinearColor(0.85f, 0.1f, 0.1f, 1.f));
-		EnemyHPBar->SetWidgetStyle(Style);
 		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(EnemyHPBar);
-		S->SetPadding(FMargin(0.f, 0.f, 0.f, 20.f));
+		S->SetPadding(FMargin(0.f, 0.f, 0.f, 18.f));
 		S->SetHorizontalAlignment(HAlign_Fill);
 	}
 
 	// ---- LOG SECTION ----
-	{
-		UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-		T->SetText(FText::FromString(TEXT("[ Journal de combat ]")));
-		T->SetColorAndOpacity(FSlateColor(FLinearColor(0.55f, 0.55f, 0.55f, 1.f)));
-		T->SetFont(Font12Bold);
-		T->SetJustification(ETextJustify::Center);
-		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(T);
-		S->SetPadding(FMargin(0.f, 0.f, 0.f, 4.f));
-		S->SetHorizontalAlignment(HAlign_Fill);
-	}
+	AddLabel(TEXT("[ Journal de combat ]"), FLinearColor(0.55f, 0.55f, 0.55f, 1.f), F12, FMargin(0.f, 0.f, 0.f, 4.f));
 
 	LogTextBlocks.Empty();
 	for (int32 i = 0; i < 6; ++i)
@@ -94,7 +124,7 @@ void UBattleWidget::NativeConstruct()
 		UTextBlock* LT = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		LT->SetText(FText::FromString(TEXT(" ")));
 		LT->SetColorAndOpacity(FSlateColor(FLinearColor(0.8f, 0.8f, 0.8f, 1.f)));
-		LT->SetFont(Font11Reg);
+		LT->SetFont(F11);
 		LT->SetJustification(ETextJustify::Left);
 		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(LT);
 		S->SetPadding(FMargin(4.f, 1.f));
@@ -103,104 +133,80 @@ void UBattleWidget::NativeConstruct()
 	}
 
 	// ---- PLAYER SECTION ----
-	{
-		UTextBlock* T = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-		T->SetText(FText::FromString(TEXT("JOUEUR")));
-		T->SetColorAndOpacity(FSlateColor(FLinearColor(0.3f, 0.85f, 0.3f, 1.f)));
-		T->SetFont(Font16Bold);
-		T->SetJustification(ETextJustify::Center);
-		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(T);
-		S->SetPadding(FMargin(0.f, 20.f, 0.f, 8.f));
-		S->SetHorizontalAlignment(HAlign_Fill);
-	}
+	AddLabel(TEXT("JOUEUR"), FLinearColor(0.3f, 0.85f, 0.3f, 1.f), F16, FMargin(0.f, 18.f, 0.f, 8.f));
 
-	PlayerHPBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), FName("PlayerHPBar"));
+	PlayerHPBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), FName("PlayerHP"));
 	PlayerHPBar->SetPercent(1.f);
+	PlayerHPBar->SetWidgetStyle(MakeBarStyle(FLinearColor(0.1f, 0.85f, 0.1f, 1.f)));
 	{
-		FProgressBarStyle Style = FCoreStyle::Get().GetWidgetStyle<FProgressBarStyle>("ProgressBar");
-		Style.FillImage.TintColor = FSlateColor(FLinearColor(0.1f, 0.85f, 0.1f, 1.f));
-		PlayerHPBar->SetWidgetStyle(Style);
 		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(PlayerHPBar);
-		S->SetPadding(FMargin(0.f, 0.f, 0.f, 24.f));
+		S->SetPadding(FMargin(0.f, 0.f, 0.f, 22.f));
 		S->SetHorizontalAlignment(HAlign_Fill);
 	}
 
-	// ---- BUTTON ROW ----
-	UHorizontalBox* ButtonRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	// ---- BUTTONS ----
+	UHorizontalBox* BtnRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	{
-		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(ButtonRow);
+		UVerticalBoxSlot* S = VBox->AddChildToVerticalBox(BtnRow);
 		S->SetHorizontalAlignment(HAlign_Center);
-		S->SetPadding(FMargin(0.f));
 	}
 
-	// Attack button (blue)
-	AttackButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), FName("AttackBtn"));
+	auto MakeBtn = [&](const FString& Label, FLinearColor Color) -> UButton*
 	{
-		FButtonStyle BS = FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("Button");
-		BS.Normal.TintColor  = FSlateColor(FLinearColor(0.15f, 0.35f, 0.75f, 1.f));
-		BS.Hovered.TintColor = FSlateColor(FLinearColor(0.25f, 0.45f, 0.85f, 1.f));
-		BS.Pressed.TintColor = FSlateColor(FLinearColor(0.10f, 0.25f, 0.60f, 1.f));
-		AttackButton->SetStyle(BS);
+		UButton* Btn = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+		Btn->SetStyle(MakeBtnStyle(Color));
 
 		UTextBlock* Lbl = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-		Lbl->SetText(FText::FromString(TEXT("Attaquer")));
+		Lbl->SetText(FText::FromString(Label));
 		Lbl->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-		Lbl->SetFont(Font13Bold);
-		AttackButton->SetContent(Lbl);
-	}
-	AttackButton->OnClicked.AddDynamic(this, &UBattleWidget::OnAttackClicked);
-	{
-		UHorizontalBoxSlot* HS = ButtonRow->AddChildToHorizontalBox(AttackButton);
+		Lbl->SetFont(F13);
+		Btn->SetContent(Lbl);
+
+		UHorizontalBoxSlot* HS = BtnRow->AddChildToHorizontalBox(Btn);
 		HS->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
-	}
+		return Btn;
+	};
 
-	// Missile button (orange)
+	AttackButton = MakeBtn(TEXT("Attaquer"), FLinearColor(0.15f, 0.35f, 0.75f, 1.f));
+	AttackButton->OnClicked.AddDynamic(this, &UBattleWidget::OnAttackClicked);
+
 	MissileButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), FName("MissileBtn"));
-	{
-		FButtonStyle BS = FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("Button");
-		BS.Normal.TintColor  = FSlateColor(FLinearColor(0.70f, 0.30f, 0.05f, 1.f));
-		BS.Hovered.TintColor = FSlateColor(FLinearColor(0.85f, 0.40f, 0.10f, 1.f));
-		BS.Pressed.TintColor = FSlateColor(FLinearColor(0.55f, 0.20f, 0.00f, 1.f));
-		MissileButton->SetStyle(BS);
-
-		MissileLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FName("MissileLabel"));
-		MissileLabel->SetText(FText::FromString(TEXT("Missile (x2)")));
-		MissileLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-		MissileLabel->SetFont(Font13Bold);
-		MissileButton->SetContent(MissileLabel);
-	}
+	MissileButton->SetStyle(MakeBtnStyle(FLinearColor(0.70f, 0.30f, 0.05f, 1.f)));
+	MissileLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FName("MissileLabel"));
+	MissileLabel->SetText(FText::FromString(TEXT("Missile (x2)")));
+	MissileLabel->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+	MissileLabel->SetFont(F13);
+	MissileButton->SetContent(MissileLabel);
 	MissileButton->OnClicked.AddDynamic(this, &UBattleWidget::OnMissileClicked);
-	{
-		UHorizontalBoxSlot* HS = ButtonRow->AddChildToHorizontalBox(MissileButton);
-		HS->SetPadding(FMargin(0.f));
-	}
+	BtnRow->AddChildToHorizontalBox(MissileButton)->SetPadding(FMargin(0.f));
 
-	// ---- RESULT OVERLAY (hidden until battle ends) ----
+	// ---- RESULT OVERLAY (hidden until end) ----
 	ResultOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), FName("ResultOverlay"));
 	ResultOverlay->SetVisibility(ESlateVisibility::Collapsed);
 	{
-		UCanvasPanelSlot* CS = Root->AddChildToCanvas(ResultOverlay);
-		CS->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-		CS->SetOffsets(FMargin(0.f));
+		UOverlaySlot* S = Root->AddChildToOverlay(ResultOverlay);
+		S->SetHorizontalAlignment(HAlign_Fill);
+		S->SetVerticalAlignment(VAlign_Fill);
 	}
 
-	UImage* ResultBg = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-	ResultBg->SetColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.80f));
+	UBorder* ResultBg = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	ResultBg->Background = ColorBrush(FLinearColor(0.f, 0.f, 0.f, 0.80f));
+	ResultBg->SetPadding(FMargin(0.f));
 	{
-		UOverlaySlot* OS = ResultOverlay->AddChildToOverlay(ResultBg);
-		OS->SetHorizontalAlignment(HAlign_Fill);
-		OS->SetVerticalAlignment(VAlign_Fill);
+		UOverlaySlot* S = ResultOverlay->AddChildToOverlay(ResultBg);
+		S->SetHorizontalAlignment(HAlign_Fill);
+		S->SetVerticalAlignment(VAlign_Fill);
 	}
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FName("ResultText"));
 	ResultText->SetText(FText::GetEmpty());
 	ResultText->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, 0.9f, 0.1f, 1.f)));
-	ResultText->SetFont(Font32Bold);
+	ResultText->SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 32));
 	ResultText->SetJustification(ETextJustify::Center);
 	{
-		UOverlaySlot* OS = ResultOverlay->AddChildToOverlay(ResultText);
-		OS->SetHorizontalAlignment(HAlign_Center);
-		OS->SetVerticalAlignment(VAlign_Center);
+		UOverlaySlot* S = ResultOverlay->AddChildToOverlay(ResultText);
+		S->SetHorizontalAlignment(HAlign_Center);
+		S->SetVerticalAlignment(VAlign_Center);
 	}
 }
 
@@ -241,23 +247,17 @@ void UBattleWidget::SetMissileButtonEnabled(bool bEnabled)
 void UBattleWidget::UpdateMissileLabel(int32 Charges)
 {
 	if (MissileLabel)
-	{
 		MissileLabel->SetText(FText::FromString(FString::Printf(TEXT("Missile (x%d)"), Charges)));
-	}
 }
 
 void UBattleWidget::OnAttackClicked()
 {
 	if (ABattleGameMode* GM = Cast<ABattleGameMode>(GetWorld()->GetAuthGameMode()))
-	{
 		GM->PlayerAttack();
-	}
 }
 
 void UBattleWidget::OnMissileClicked()
 {
 	if (ABattleGameMode* GM = Cast<ABattleGameMode>(GetWorld()->GetAuthGameMode()))
-	{
 		GM->PlayerMissile();
-	}
 }
